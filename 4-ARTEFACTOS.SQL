@@ -1,0 +1,433 @@
+
+--**********************************************************************************************************
+--FUNCIÓN PARA SABER EL TOTAL DE DINERO QUE LA EMPRESA TIENE AL MOMENTO MAS LA ULTIMA FACTURA QUE SE REGISTRA DENTRO DEL SISTEMA.
+--**********************************************************************************************************
+
+CREATE OR REPLACE FUNCTION FN_OBTENER_TOTAL (P_PRECIO FACTURA.VALOR%TYPE)
+
+RETURN NUMBER
+
+AS
+  V_CONT_ID INT;
+  V_GANANCIAS NUMBER := 0;
+BEGIN
+
+    SELECT COUNT(ID_FACTURA) INTO V_CONT_ID
+    FROM FACTURA;
+    
+    V_CONT_ID := V_CONT_ID + 1;
+        
+    --SELECT * FROM FACTURA;
+    INSERT INTO FACTURA (ID_FACTURA, FECHA_FACTURA, VALOR) 
+    VALUES (V_CONT_ID, SYSDATE, P_PRECIO);
+      
+    SELECT SUM(VALOR) INTO V_GANANCIAS
+      FROM FACTURA;
+            
+    RETURN V_GANANCIAS;
+
+END;
+
+
+
+CREATE OR REPLACE PROCEDURE SP_CREAR_FACTURA(P_PRECIO FACTURA.VALOR%TYPE)                                   
+AS
+  VALOR_MINIMO EXCEPTION;
+  V_GANANCIAS INT;
+BEGIN
+
+  IF (P_PRECIO < 100) THEN
+    RAISE VALOR_MINIMO;
+  ELSE
+       V_GANANCIAS := FN_OBTENER_TOTAL(P_PRECIO);
+    
+      DBMS_OUTPUT.PUT_LINE('EL TOTAL DE DINERO DE LA EMPRESA DEL DIA DE HOY ' || SYSDATE || ' ES:  $' || V_GANANCIAS);
+    
+  END IF;
+
+EXCEPTION
+  WHEN VALOR_MINIMO THEN
+    DBMS_OUTPUT.PUT_LINE('NO PUEDE EXISTIR UN TRABAJO DE MENOS DE 100 PESOS COLOMBIANOS');
+    RAISE_APPLICATION_ERROR(-20023, 'NO PUEDE EXISTIR UN TRABAJO DE MENOS DE 100');
+    
+END;
+
+--**********************************************************************************************************
+--NUEVA FACTURA DE 15000000
+EXECUTE SP_CREAR_FACTURA(15000000);
+
+--NUEVA FACTURA DE 50 QUE DEBE DAR ERROR
+EXECUTE SP_CREAR_FACTURA(50);
+
+
+
+
+--**********************************************************************************************************
+--VER CUANTOS PROYECTOS TIENE UN TRABAJADOR
+--**********************************************************************************************************
+
+CREATE OR REPLACE FUNCTION FN_TRABAJOS_EMP(P_EMPLE INT)
+
+RETURN NUMBER
+
+IS
+  V_TOTAL NUMBER := 0;
+  V_EMPL VARCHAR(100) := NULL;
+   NOMBRE VARCHAR(100) := NULL;
+  
+BEGIN
+
+  SELECT COUNT(ID_ASIGNACION_EMP) INTO V_TOTAL
+    FROM ASIGNACION_EMPLEADO WHERE ID_EMPLEADO = P_EMPLE;
+    
+    SELECT PRIMER_NOMBRE INTO NOMBRE
+      FROM EMPLEADO 
+        WHERE ID_EMPLEADO = P_EMPLE;
+    
+     DBMS_OUTPUT.PUT_LINE('EL EMPLEADO ' || NOMBRE || ' TIENE ' || V_TOTAL || ' TRABAJOS');
+     
+    
+    
+  RETURN V_TOTAL;
+  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    DBMS_OUTPUT.PUT_LINE('NO SE ENCONTRARON DATOS CON ESE ID');
+     V_TOTAL := 0;
+    RETURN V_TOTAL;
+  
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20001, 'ERROR GENERAL');
+
+END;
+
+
+--**********************************************************************************************************
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('FIN DE LA VISUALIZACIÓN' || FN_TRABAJOS_EMP(2));
+END;
+
+
+--**********************************************************************************************************
+--OBSERVAR CUANTOS PROYECTOS TIENE UN EMPLEADO FILTRADO POR NUMERO DE IDENTIFICACIÓN.
+--**********************************************************************************************************
+
+CREATE OR REPLACE FUNCTION FN_IDENTIFICAR(P_IDENTIFICACION INT)
+
+RETURN NUMBER
+
+IS
+  V_ID_EMPLEADO NUMBER := 0;
+BEGIN
+
+  SELECT ID_EMPLEADO INTO V_ID_EMPLEADO
+    FROM EMPLEADO 
+      WHERE IDENTIFICACION = P_IDENTIFICACION;
+  
+  RETURN V_ID_EMPLEADO;
+  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    V_ID_EMPLEADO := 0;
+    RETURN V_ID_EMPLEADO;
+
+END;
+
+
+--**********************************************************************************************************
+
+CREATE OR REPLACE FUNCTION FN_PROYECTOS(P_ID_EMPLEADO INT)
+
+RETURN NUMBER
+
+IS
+  V_ID_PROYECTOS NUMBER := 0;
+BEGIN
+
+  SELECT COUNT(ID_ASIGNACION_EMP) INTO V_ID_PROYECTOS
+    FROM ASIGNACION_EMPLEADO 
+      WHERE ID_EMPLEADO = P_ID_EMPLEADO;
+  
+  RETURN V_ID_PROYECTOS;
+  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    --RAISE_APPLICATION_ERROR(-20000, 'NO SE ENCONTRARON DATOS EN LA BUSQUEDA');
+    DBMS_OUTPUT.PUT_LINE('NO EXISTE PROYECTO');
+  
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20001, 'ERROR GENERAL');
+END;
+
+--**********************************************************************************************************
+
+CREATE OR REPLACE PROCEDURE SP_EMPLEADO(P_IDENTIFICACION EMPLEADO.IDENTIFICACION%TYPE)                                   
+AS
+  V_EMPLEDO NUMBER := 0;
+  V_PROYECTOS NUMBER := 0;
+  
+  EMPLEADO_NO_EXISTE EXCEPTION;
+
+BEGIN
+  V_EMPLEDO := FN_IDENTIFICAR(P_IDENTIFICACION);
+  IF V_EMPLEDO > 0 THEN
+      V_PROYECTOS := FN_PROYECTOS(V_EMPLEDO);
+      
+      DBMS_OUTPUT.PUT_LINE('EL EMPLEADO CON IDENTIFICACION ' ||P_IDENTIFICACION || ' TIENE EL ID DE ' ||V_EMPLEDO );
+  
+      DBMS_OUTPUT.PUT_LINE('');
+
+      DBMS_OUTPUT.PUT_LINE('EL EMPLEADO TIENE ' || V_PROYECTOS || ' PROYECTOS');
+  ELSE
+      RAISE EMPLEADO_NO_EXISTE;
+  END IF;
+EXCEPTION
+  WHEN EMPLEADO_NO_EXISTE THEN
+    DBMS_OUTPUT.PUT_LINE('NO EXISTE UN EMPLEADO CON ESA IDENTIFICACIÓN');
+    --RAISE_APPLICATION_ERROR(-20023, 'NO PUEDE EXISTIR UN TRABAJO DE MENOS DE 100');
+END;
+
+--**********************************************************************************************************
+--ERROR CON LA IDENTIFICACIÓN 1000087929
+EXECUTE SP_EMPLEADO(1000087929);
+
+--**********************************************************************************************************
+--EMPLEADO CON LA IDENTIFICACIÓN 1300067090
+EXECUTE SP_EMPLEADO(1300067090);
+--EL EMPLEADO CON IDENTIFICACION 1300067090 TIENE EL ID DE 2
+
+--EL EMPLEADO TIENE 3 PROYECTOS
+
+
+
+--**********************************************************************************************************
+--Creación de un nuevo cliente, No puede tener el ID_CLIENTE y la IDENTIFICACION repetidas en toda la tabla.
+--**********************************************************************************************************
+create or replace FUNCTION FN_IDENTIFICACION_DUPLICADA(P_IDENTIFICACION INT)
+
+RETURN NUMBER
+
+IS
+  V_IDENTI_ENCONTRADA NUMBER := 0;
+BEGIN
+
+ SELECT LENGTH(IDENTIFICACION) INTO V_IDENTI_ENCONTRADA
+      FROM CLIENTE 
+        WHERE IDENTIFICACION = P_IDENTIFICACION;
+  
+  RETURN V_IDENTI_ENCONTRADA;
+  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    V_IDENTI_ENCONTRADA := 0;
+    RETURN V_IDENTI_ENCONTRADA;
+
+END;
+
+--**********************************************************************************************************
+
+CREATE OR REPLACE PROCEDURE SP_INSERTAR_CLIENTE( 
+                                               P_IDENTIFICACION VARCHAR, 
+                                               P_PRIMER_NOMBRE VARCHAR,
+                                               P_SEGUNDO_NOMBRE VARCHAR,
+                                               P_PRIMER_APELLIDO VARCHAR,
+                                               P_SEGUNDO_APELLIDO VARCHAR,
+                                               P_CELULAR VARCHAR,
+                                               P_EMAIL VARCHAR,
+                                               P_DIRECCION VARCHAR)
+IS
+  V_CONT_ID INT;
+  V_IDENTI_ENCONTRADA NUMBER;
+  CLIENTE_EXISTENTE EXCEPTION;
+  CLIENTE_NOMBRE VARCHAR(30);
+  
+BEGIN
+    SELECT COUNT(ID_CLIENTE) INTO V_CONT_ID
+      FROM CLIENTE;
+    
+      V_IDENTI_ENCONTRADA := FN_IDENTIFICACION_DUPLICADA(P_IDENTIFICACION);
+        
+    IF V_IDENTI_ENCONTRADA > 0 THEN
+      RAISE CLIENTE_EXISTENTE;
+    ELSE
+        V_CONT_ID := V_CONT_ID + 1;
+        INSERT INTO CLIENTE (ID_CLIENTE, IDENTIFICACION, PRIMER_NOMBRE, SEGUNDO_NOMBRE, PRIMERO_APELLIDO, SEGUNDO_APELLIDO, CELULAR, EMAIL, DIRECCION)
+         VALUES (V_CONT_ID, P_IDENTIFICACION, P_PRIMER_NOMBRE, P_SEGUNDO_NOMBRE, P_PRIMER_APELLIDO, P_SEGUNDO_APELLIDO, P_CELULAR, P_EMAIL, P_DIRECCION); 
+        DBMS_OUTPUT.PUT_LINE('CLIENTE NUEVO INGRESADO CON EXITO!!!');
+    END IF;
+    
+  EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN
+    DBMS_OUTPUT.PUT_LINE('VALOR DE CLAVE PRIMARIA YA EXISTE');
+    RAISE_APPLICATION_ERROR(-20000, 'VALOR DE CLAVE PRIMARIA YA EXISTE');
+    
+    
+  WHEN CLIENTE_EXISTENTE THEN
+    DBMS_OUTPUT.PUT_LINE('YA HAY UN CLIENTE CON ESTA IDENTIFICACIÓN');
+    
+    SELECT PRIMER_NOMBRE INTO CLIENTE_NOMBRE
+        FROM CLIENTE 
+          WHERE IDENTIFICACION = P_IDENTIFICACION;
+
+            DBMS_OUTPUT.PUT_LINE('EL CLIENTE IDENTIFICADO ES: ' || CLIENTE_NOMBRE);
+    
+    RAISE_APPLICATION_ERROR(-20001, 'IDENTIFICACIÓN DUPLICADA');
+    
+END;  
+
+--**********************************************************************************************************
+EXECUTE SP_INSERTAR_CLIENTE('1111111110', 'ANDRES', 'STEVEN', 'ANGULO', 'MURILLO','3123134234','MURILLOGULO@GMAIL.COM','CRA76@Y'); 
+--Creación de cliente nuevo. Mensaje : CLIENTE NUEVO INGRESADO CON EXITO!!!
+
+--**********************************************************************************************************
+EXECUTE SP_INSERTAR_CLIENTE('1000086030', 'ANDRES', 'STEVEN', 'ANGULO', 'MURILLO','3123134234','MURILLOGULO@GMAIL.COM','CRA76@Y');                                              
+--Creación de cliente nuevo. Mensaje : YA HAY UN CLIENTE CON ESTA IDENTIFICACIÓN
+                                    -- EL CLIENTE IDENTIFICADO ES: HENRY
+
+
+--*******************************************************************************
+--PROCEDIMIENTO PARA CONSULTAR LOS DIFERENTES PROYECTOS QUE HAY EN CADA UNO DE LOS 5 ESTADOS
+--******************************************************************************
+
+CREATE OR REPLACE PROCEDURE SP_ESTADO_PROYECTO(P_ESTADOID ESTADO.ID_ESTADO%TYPE)                                   
+AS
+    EXC_MAX_ESTADO EXCEPTION;
+    
+    CURSOR C_ESTADOS IS
+    SELECT P.NOMBRE_PROYECTO FROM 
+      PROYECTO P INNER JOIN ESTADO E ON E.ID_ESTADO = P.ID_ESTADO  
+        WHERE P.ID_ESTADO = P_ESTADOID;
+
+  V_NOMBRE_PROYECTO PROYECTO.NOMBRE_PROYECTO%TYPE;
+  
+  ESTADO_PROYECTO VARCHAR(50);
+
+BEGIN
+
+  IF P_ESTADOID = 1 THEN
+       ESTADO_PROYECTO := 'PENDIENTES';
+      ELSIF P_ESTADOID = 2 THEN
+       ESTADO_PROYECTO := 'EVALUADOS';
+      ELSIF P_ESTADOID = 3 THEN
+        ESTADO_PROYECTO := 'COTIZADOS';
+      ELSIF P_ESTADOID = 4 THEN
+        ESTADO_PROYECTO := 'TERMINADOS';
+      ELSIF P_ESTADOID = 5 THEN 
+        ESTADO_PROYECTO := 'EN_PROGRESO';
+      ELSE 
+        RAISE EXC_MAX_ESTADO;
+      END IF;
+
+OPEN C_ESTADOS;
+  DBMS_OUTPUT.PUT_LINE('** '|| ESTADO_PROYECTO ||'**');
+  DBMS_OUTPUT.PUT_LINE(' ');
+  LOOP
+    FETCH C_ESTADOS INTO V_NOMBRE_PROYECTO;
+         EXIT WHEN C_ESTADOS%NOTFOUND;
+        
+        DBMS_OUTPUT.PUT_LINE(V_NOMBRE_PROYECTO);
+
+  END LOOP;
+  CLOSE C_ESTADOS;
+  
+  EXCEPTION
+  WHEN EXC_MAX_ESTADO THEN
+    DBMS_OUTPUT.PUT_LINE('NO HAY ESTADO CON ESE ID, SOLO HAY ID DE 1 A 5');
+    RAISE_APPLICATION_ERROR(-20003, 'NO EXISTE EL ID');
+    
+END;
+
+--**********************************************************************************************************
+EXECUTE SP_ESTADO_PROYECTO(6);
+
+--**********************************************************************************************************
+EXECUTE SP_ESTADO_PROYECTO(2);
+
+
+
+--**********************************************************************************************************
+---CURSOR PARA VISUARLIZAR NOMBRE, PROYECTO Y VALOR DE UN CLIENTE FILTRADO MEDIANTE IDENTIFICACIÓN
+---IDENTIFICACIÓN: 3122554388
+--**********************************************************************************************************
+
+
+CREATE OR REPLACE FUNCTION FN_IDENTIFICAR_CLIENTE(P_IDENTIFICACION INT)
+
+RETURN NUMBER
+
+IS
+  V_ID_CLIENTE NUMBER := 0;
+BEGIN
+
+  SELECT ID_CLIENTE INTO V_ID_CLIENTE
+    FROM CLIENTE 
+      WHERE IDENTIFICACION = P_IDENTIFICACION;
+  
+  RETURN V_ID_CLIENTE;
+  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    V_ID_CLIENTE := 0;
+    RETURN V_ID_CLIENTE;
+
+END;
+
+--*********************************************************************************************
+
+CREATE OR REPLACE PROCEDURE SP_FILTRACION_PROYECTO(P_CLIENTE CLIENTE.IDENTIFICACION%TYPE)                                   
+AS
+
+  V_CLIENTE NUMBER := 0;
+  CLIENTE_NO_EXISTE EXCEPTION;
+
+
+  CURSOR C_PROYECTO_CADA_CLIENTE(C_IDENTIFICACION NUMBER) IS
+   SELECT P.NOMBRE_PROYECTO,C.PRIMER_NOMBRE,C.IDENTIFICACION,C.SEGUNDO_NOMBRE,C.PRIMERO_APELLIDO,C.SEGUNDO_APELLIDO, F.VALOR
+      FROM PROYECTO P INNER JOIN CLIENTE C ON P.ID_CLIENTE = C.ID_CLIENTE
+          INNER JOIN FACTURA F ON F.ID_FACTURA = P.ID_FACTURA
+            WHERE C.IDENTIFICACION = C_IDENTIFICACION;
+
+BEGIN
+
+  V_CLIENTE := FN_IDENTIFICAR_CLIENTE(P_CLIENTE);
+  
+  IF V_CLIENTE > 0 THEN
+      DBMS_OUTPUT.PUT_LINE('****************************PROYECTOS FILTRADOS**************************************');
+      DBMS_OUTPUT.PUT_LINE('');
+    
+      FOR PROYECTO IN C_PROYECTO_CADA_CLIENTE(P_CLIENTE) LOOP
+      
+        DBMS_OUTPUT.PUT_LINE('CLIENTE ' || PROYECTO.PRIMER_NOMBRE || ' ' || PROYECTO.SEGUNDO_NOMBRE || ' ' || PROYECTO.PRIMERO_APELLIDO || ' '  || PROYECTO.SEGUNDO_APELLIDO
+        || CHR(13) || 'PROYECTO ' || PROYECTO.NOMBRE_PROYECTO || CHR(13) || 'COSTO ' ||PROYECTO.VALOR);
+    
+      END LOOP;
+      
+      DBMS_OUTPUT.PUT_LINE('');
+      DBMS_OUTPUT.PUT_LINE('************************FIN PROYECTOS FILTRADOS**************************************');
+  ELSE
+     RAISE CLIENTE_NO_EXISTE;
+
+    
+  END IF;
+
+EXCEPTION
+  WHEN CLIENTE_NO_EXISTE THEN
+    DBMS_OUTPUT.PUT_LINE('EL CLIENTE NO EXISTE EN LA EMPRESA');
+    RAISE_APPLICATION_ERROR(-20009, 'EL CLIENTE NO SE ENCUENTRA');
+
+END;
+
+
+--**********************************************************************************************************
+EXECUTE SP_FILTRACION_PROYECTO(3122554388);
+--****************************PROYECTOS FILTRADOS**************************************
+
+--CLIENTE ROSA GABRIELA MARTINES GIL
+--PROYECTO ESCALAS
+--COSTO 140000
+--************************FIN PROYECTOS FILTRADOS**************************************
+
+
+EXECUTE SP_FILTRACION_PROYECTO(3122554386);
+
+--EL CLIENTE NO EXISTE EN LA EMPRESA
